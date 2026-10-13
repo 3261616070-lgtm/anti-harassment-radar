@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#F3EFE6">
+<title>防骚扰雷达</title>
+<style>
+:root{
+  --paper:#F3EFE6;--card:#FBF8F1;--ink:#16130F;--ink2:#4A443B;--mut:#8A8274;
+  --sig:#FF4F1A;--safe:#1E7B57;--warn:#E09A00;--dang:#D6281E;
+  --grid:rgba(22,19,15,.045);
+  --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif;
+  --sans:"HarmonyOS Sans SC","MiSans","PingFang SC","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+  --mono:"JetBrains Mono","Cascadia Code","SF Mono",Consolas,"Courier New",monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;min-height:100vh;color:var(--ink);background:var(--paper);font:15px/1.65 var(--sans);padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:28px 28px}
+body::after{content:"";position:fixed;inset:0;z-index:100;pointer-events:none;opacity:.4;mix-blend-mode:multiply;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .3 0 0 0 0 .25 0 0 0 0 .2 0 0 0 .45 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+button{font-family:inherit}
+.sr{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+
+/* ---------- header ---------- */
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;padding-top:calc(12px + env(safe-area-inset-top));background:rgba(243,239,230,.9);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1.5px solid var(--ink)}
+.brand{display:flex;align-items:center;gap:11px}
+.mark{width:40px;height:40px;flex:none;border:1.5px solid var(--ink);border-radius:50%;background:var(--sig);box-shadow:2px 2px 0 var(--ink);display:grid;place-items:center;overflow:hidden;position:relative}
+.mark::after{content:"";position:absolute;inset:0;background:conic-gradient(from 0deg,rgba(22,19,15,.55),transparent 25%);animation:spin 3s linear infinite}
+.mark svg{position:relative;z-index:1}
+.brand b{display:block;font:900 20px/1.1 var(--serif);letter-spacing:.05em}
+.brand small{display:block;margin-top:3px;font:600 9.5px/1 var(--mono);letter-spacing:.2em;color:var(--mut)}
+.status{display:flex;align-items:center;gap:7px;font:600 11px var(--mono);letter-spacing:.04em;color:var(--ink2);border:1.5px solid var(--ink);border-radius:99px;padding:5px 11px;background:var(--card);white-space:nowrap}
+.status i{width:7px;height:7px;border-radius:50%;background:var(--safe);animation:blink 2.2s infinite}
+
+/* ---------- tabs ---------- */
+.tabs{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:30;display:grid;grid-template-columns:repeat(5,1fr);gap:2px;padding:6px;background:var(--ink);border-radius:18px;box-shadow:0 12px 30px rgba(22,19,15,.28)}
+.tabs button{display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 0 7px;border:0;border-radius:12px;background:none;color:#B4AC9E;font:600 11px/1 var(--sans);cursor:pointer;transition:background .2s,color .2s}
+.tabs svg{width:21px;height:21px}
+.tabs button.on{background:var(--paper);color:var(--ink)}
+.tabs button[data-t=sos]{color:#FF8D70}
+.tabs button[data-t=sos].on{background:var(--dang);color:#fff}
+
+main{max-width:1100px;margin:0 auto;padding:22px 16px 10px}
+section{display:none}
+section.on{display:block}
+section.on .rv{animation:rise .55s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--d,0) * 70ms)}
+
+/* ---------- common ---------- */
+.sh{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:6px 20px;margin:0 0 20px;padding-bottom:12px;border-bottom:1.5px solid var(--ink)}
+.sh .no{font:700 11px var(--mono);letter-spacing:.2em;color:var(--sig)}
+.sh h2{margin:4px 0 0;font:900 32px/1.15 var(--serif);letter-spacing:.02em}
+.sh p{margin:0;max-width:26em;color:var(--ink2);font-size:13.5px}
+.card{position:relative;margin-bottom:18px;padding:20px;background:var(--card);border:1.5px solid var(--ink);border-radius:16px;box-shadow:4px 4px 0 var(--ink)}
+.card h3{margin:0 0 12px;font:900 19px/1.3 var(--serif)}
+.kicker{display:block;margin-bottom:6px;font:700 10.5px var(--mono);letter-spacing:.18em;color:var(--mut)}
+.note{margin:10px 0 0;color:var(--mut);font-size:12.5px;line-height:1.6}
+.row{display:flex;flex-wrap:wrap;gap:10px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;border:1.5px solid var(--ink);border-radius:11px;background:var(--ink);color:var(--paper);font:700 14px/1.2 var(--sans);text-decoration:none;cursor:pointer;box-shadow:3px 3px 0 var(--sig);transition:transform .12s,box-shadow .12s}
+.btn:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--sig)}
+.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--sig)}
+.btn.ghost{background:var(--card);color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.btn.ghost:hover{box-shadow:4px 4px 0 var(--ink)}
+.btn.ghost:active{box-shadow:1px 1px 0 var(--ink)}
+.btn.danger{background:var(--dang);color:#fff;box-shadow:3px 3px 0 var(--ink)}
+.btn svg{width:16px;height:16px}
+
+/* ---------- radar ---------- */
+.radar-grid{display:grid;gap:20px}
+.scope{padding:16px 16px 18px;background:var(--ink);color:var(--paper);box-shadow:5px 5px 0 var(--sig);overflow:hidden}
+.scope-head{display:flex;justify-content:space-between;align-items:center;font:700 10.5px var(--mono);letter-spacing:.18em;color:#9C9486}
+.live{display:flex;align-items:center;gap:6px;color:var(--lvc,#3FD18B)}
+.live::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;animation:blink 1.2s infinite}
+.scope-wrap{position:relative;max-width:420px;margin:8px auto 4px}
+#cv{display:block;width:100%;height:auto;aspect-ratio:1/1}
+.scope.flash .scope-wrap::after{content:"";position:absolute;inset:12%;border-radius:50%;border:2px solid var(--lvc,#3FD18B);animation:ripple .7s ease-out forwards;pointer-events:none}
+.readout{display:grid;grid-template-columns:repeat(3,1fr);margin-top:6px;border-top:1px dashed rgba(243,239,230,.25)}
+.readout div{padding:12px 4px 0;text-align:center}
+.readout div+div{border-left:1px dashed rgba(243,239,230,.25)}
+.readout label{display:block;font:600 10px var(--mono);letter-spacing:.14em;color:#9C9486}
+.readout b{display:block;margin-top:4px;font:700 30px/1 var(--mono);color:var(--paper);font-variant-numeric:tabular-nums}
+.readout b.lv{color:var(--lvc,#3FD18B);font-family:var(--serif);font-weight:900}
+.meter{margin-top:16px}
+.bar{position:relative;height:10px;border-radius:99px;background:rgba(243,239,230,.1);overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:99px;background:var(--lvc,#3FD18B);transition:width .5s cubic-bezier(.2,.8,.2,1),background .3s}
+.bar::before,.bar::after{content:"";position:absolute;top:0;bottom:0;width:2px;background:var(--ink);z-index:1}
+.bar::before{left:25%}
+.bar::after{left:58.33%}
+.ticks{position:relative;height:16px;margin-top:5px;font:600 9.5px var(--mono);color:#9C9486}
+.ticks span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+.ticks span:first-child{transform:none}
+.ticks span:last-child{right:0;transform:none}
+
+.q-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 14px}
+.q-head h3{margin:0;font:900 22px/1.3 var(--serif)}
+.q-head em{font:600 11px var(--mono);font-style:normal;letter-spacing:.12em;color:var(--sig);white-space:nowrap}
+.grp{margin-bottom:18px}
+.grp-h{display:flex;align-items:center;gap:10px;margin:0 0 9px;font:900 15px var(--serif)}
+.grp-h .lt{width:26px;height:26px;flex:none;border-radius:50%;background:var(--ink);color:var(--paper);display:grid;place-items:center;font:700 12px var(--mono)}
+.grp-h .ct{margin-left:auto;font:600 11px var(--mono);color:var(--mut)}
+.grp-h::after{content:"";flex:1;order:2;height:0;border-top:1.5px dashed rgba(22,19,15,.25)}
+.grp-h .ct{order:3}
+.chk{display:flex;align-items:center;gap:12px;margin-bottom:8px;padding:12px 14px;background:var(--card);border:1.5px solid var(--ink);border-radius:11px;box-shadow:2px 2px 0 var(--ink);cursor:pointer;user-select:none;transition:transform .14s,box-shadow .14s,background .18s,color .18s}
+.chk:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--ink)}
+.chk .id{flex:none;width:20px;font:700 11px var(--mono);color:var(--mut)}
+.chk .box{flex:none;width:22px;height:22px;display:grid;place-items:center;border:1.5px solid var(--ink);border-radius:6px;background:var(--paper);transition:background .18s,border-color .18s}
+.chk .box svg{width:14px;height:14px;opacity:0;transform:scale(.3) rotate(-20deg);transition:transform .22s cubic-bezier(.3,1.6,.5,1),opacity .15s}
+.chk .tx{flex:1;font-size:14.5px;line-height:1.5}
+.chk .sv{flex:none;padding:1px 6px;border:1.5px solid var(--dang);border-radius:5px;color:var(--dang);font:700 10px/1.5 var(--mono);letter-spacing:.06em}
+.chk input:focus-visible ~ .box{outline:2px solid var(--sig);outline-offset:2px}
+.chk.on{background:var(--ink);color:var(--paper);box-shadow:2px 2px 0 var(--sig)}
+.chk.on .id{color:#9C9486}
+.chk.on .box{background:var(--sig);border-color:var(--sig)}
+.chk.on .box svg{opacity:1;transform:none}
+.chk.on .sv{background:var(--dang);color:#fff}
+
+.res{--lv:var(--safe);display:grid;grid-template-columns:12px 1fr;margin:4px 0 18px;padding:0;overflow:hidden}
+.res::before{content:"";background:repeating-linear-gradient(-45deg,var(--lv) 0 8px,rgba(0,0,0,.18) 8px 10px);border-right:1.5px solid var(--ink)}
+.res.y{--lv:var(--warn)}
+.res.r{--lv:var(--dang)}
+.res .in{position:relative;padding:20px 22px}
+.stamp{position:absolute;right:18px;top:16px;padding:4px 12px;border:3px double var(--lv);border-radius:7px;color:var(--lv);font:900 17px/1.2 var(--serif);letter-spacing:.24em;transform:rotate(-9deg);opacity:.92}
+.stamp.go{animation:stamp .45s cubic-bezier(.3,1.5,.5,1)}
+.res h3{margin:0 0 4px;padding-right:96px;font:900 23px/1.3 var(--serif)}
+.res .sub{margin:0 0 10px;padding-right:96px;color:var(--ink2);font-size:13.5px}
+.steps{margin:0;padding:0;list-style:none;counter-reset:s}
+.steps li{counter-increment:s;display:flex;gap:14px;padding:10px 0;border-top:1px dashed rgba(22,19,15,.22)}
+.steps li::before{content:counter(s,decimal-leading-zero);flex:none;padding-top:1px;color:var(--lv);font:800 12px/1.6 var(--mono)}
+.res .row{margin-top:12px}
+.res .meta{margin:12px 0 0;font:600 11px var(--mono);letter-spacing:.06em;color:var(--mut)}
+
+/* ---------- log ---------- */
+.log-grid{display:grid;gap:20px}
+.fg{display:grid;gap:0 14px}
+.f{display:block;margin-bottom:13px}
+.f>span{display:block;margin-bottom:6px;font:700 10.5px var(--mono);letter-spacing:.12em;color:var(--ink2)}
+.f>span i{font-style:normal;color:var(--mut);font-family:var(--sans);letter-spacing:0;font-weight:400}
+.f input,.f textarea{width:100%;padding:10px 12px;border:1.5px solid var(--ink);border-radius:10px;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans);outline:none;transition:box-shadow .15s,background .15s;-webkit-appearance:none;appearance:none}
+.f textarea{resize:vertical;min-height:120px}
+.f input:focus,.f textarea:focus{background:#fff;box-shadow:3px 3px 0 var(--sig)}
+.f input::placeholder,.f textarea::placeholder{color:#ADA597}
+.list-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.list-head h3{margin:0}
+.count{min-width:34px;padding:2px 10px;border-radius:99px;background:var(--sig);color:#fff;font:800 13px/1.6 var(--mono);text-align:center;border:1.5px solid var(--ink)}
+.tl{position:relative;max-height:520px;overflow:auto;padding:4px 4px 0 24px;margin-bottom:14px}
+.tl::before{content:"";position:absolute;left:8px;top:10px;bottom:10px;border-left:1.5px dashed rgba(22,19,15,.35)}
+.ent{position:relative;padding-bottom:18px}
+.ent::before{content:"";position:absolute;left:-21px;top:5px;width:11px;height:11px;border-radius:50%;background:var(--sig);border:1.5px solid var(--ink)}
+.ent .m{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font:700 11.5px var(--mono);color:var(--ink2)}
+.ent .chip{padding:1px 8px;border:1px solid var(--ink);border-radius:99px;font:500 11.5px var(--sans);color:var(--ink);background:var(--card)}
+.ent p{margin:7px 0 6px;padding:10px 12px;white-space:pre-wrap;word-break:break-word;background:var(--paper);border:1px solid rgba(22,19,15,.2);border-radius:10px;font-size:14px}
+.ent .ev{font-size:12.5px;color:var(--ink2)}
+.ent .ev b{font:700 10.5px var(--mono);letter-spacing:.1em;color:var(--mut);margin-right:6px}
+.del{margin-left:auto;padding:2px 8px;border:1px solid transparent;border-radius:6px;background:none;color:var(--mut);font:600 11px var(--mono);cursor:pointer}
+.del:hover{border-color:var(--dang);color:var(--dang)}
+.empty{padding:34px 10px;text-align:center;color:var(--mut);font:600 12px var(--mono);letter-spacing:.12em;border:1.5px dashed rgba(22,19,15,.25);border-radius:12px;margin-bottom:14px}
+.empty b{display:block;margin-bottom:6px;font:900 30px var(--serif);color:rgba(22,19,15,.15);letter-spacing:0}
+
+/* ---------- phrases ---------- */
+.rules{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-bottom:20px;border:1.5px solid var(--ink);border-radius:14px;overflow:hidden;background:var(--card);box-shadow:4px 4px 0 var(--ink)}
+.rules div{padding:14px 12px;text-align:center}
+.rules div+div{border-left:1.5px solid var(--ink)}
+.rules b{display:block;font:900 22px/1.2 var(--serif)}
+.rules span{font-size:12px;color:var(--ink2)}
+.filter{display:inline-flex;border:1.5px solid var(--ink);border-radius:99px;overflow:hidden;background:var(--card);box-shadow:2px 2px 0 var(--ink)}
+.filter button{padding:7px 16px;border:0;background:none;color:var(--ink);font:700 13px var(--sans);cursor:pointer}
+.filter button+button{border-left:1.5px solid var(--ink)}
+.filter button.on{background:var(--ink);color:var(--paper)}
+.ph-grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.ph{position:relative;display:flex;flex-direction:column;padding:18px 18px 13px;background:var(--card);border:1.5px solid var(--ink);border-radius:16px;box-shadow:3px 3px 0 var(--ink);cursor:pointer;text-align:left;color:inherit;font:inherit;transition:transform .14s,box-shadow .14s}
+.ph:hover{transform:translate(-2px,-2px) rotate(-.4deg);box-shadow:5px 5px 0 var(--ink)}
+.ph.h{background:var(--ink);color:var(--paper);box-shadow:3px 3px 0 var(--dang)}
+.ph.h:hover{box-shadow:5px 5px 0 var(--dang)}
+.ph .tg{align-self:flex-start;margin-bottom:10px;padding:2px 8px;border-radius:5px;font:800 10px/1.5 var(--mono);letter-spacing:.14em;background:var(--safe);color:#fff}
+.ph.h .tg{background:var(--dang)}
+.ph .ctx{margin-bottom:4px;font-size:12px;color:var(--mut)}
+.ph q{display:block;flex:1;font:700 17px/1.6 var(--serif);quotes:"“" "”"}
+.ph q,.ph .ft{width:100%}
+.ph .ft{display:flex;justify-content:space-between;margin-top:14px;padding-top:9px;border-top:1px dashed currentColor;font:600 10.5px var(--mono);letter-spacing:.1em;opacity:.6}
+.ph.done .ft{opacity:1;color:var(--sig)}
+.ph.hide{display:none}
+
+/* ---------- sos ---------- */
+.sos-grid{display:grid;gap:20px}
+.call{position:relative;display:block;padding:22px 22px 36px;border:1.5px solid var(--ink);border-radius:20px;background:var(--dang);color:#fff;text-decoration:none;box-shadow:6px 6px 0 var(--ink);overflow:hidden;transition:transform .12s,box-shadow .12s}
+.call:active{transform:translate(3px,3px);box-shadow:2px 2px 0 var(--ink)}
+.call::after{content:"";position:absolute;left:0;right:0;bottom:0;height:16px;border-top:1.5px solid var(--ink);background:repeating-linear-gradient(-45deg,var(--ink) 0 12px,#FFC21A 12px 24px)}
+.call .k{font:700 11px var(--mono);letter-spacing:.2em;opacity:.8}
+.call .num{display:flex;align-items:center;gap:16px;margin:6px 0 2px;font:800 84px/1 var(--mono);letter-spacing:-.03em}
+.call .ic{position:relative;width:62px;height:62px;flex:none;border-radius:50%;background:#fff;color:var(--dang);display:grid;place-items:center}
+.call .ic::before{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid #fff;animation:ring 1.6s infinite}
+.call .ic svg{width:28px;height:28px}
+.call .lb{font:900 18px var(--serif)}
+.call small{display:block;margin-top:4px;font-size:13px;opacity:.85}
+.cd{display:none;align-items:center;gap:14px;margin-top:14px;padding:12px 14px;border:1.5px dashed var(--ink);border-radius:12px}
+.cd.on{display:flex}
+.cd b{font:800 40px/1 var(--mono);color:var(--sig);min-width:1ch}
+.cd span{flex:1;font-size:13px;color:var(--ink2)}
+
+#fake{position:fixed;inset:0;z-index:200;display:none;flex-direction:column;align-items:center;justify-content:space-between;padding:15vh 24px calc(10vh + env(safe-area-inset-bottom));text-align:center;color:#fff;background:radial-gradient(120% 75% at 50% 0%,#4A5A70 0%,#1A212C 55%,#07090C 100%);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+#fake.on{display:flex;animation:fadein .3s}
+#fake .av{width:96px;height:96px;margin:0 auto 18px;border-radius:50%;background:linear-gradient(160deg,#A8B3C2,#5E6878);display:grid;place-items:center;font-size:40px;font-weight:500}
+#fake .fn{font-size:36px;font-weight:300;line-height:1.2}
+#fake .fs{margin-top:8px;color:#AAB3BF;font-size:16px;font-variant-numeric:tabular-nums}
+#fake .fb{display:flex;gap:90px}
+#fake .fb div{display:flex;flex-direction:column;align-items:center;gap:10px;font-size:13px;color:#D5DAE0}
+#fake .fb button{width:74px;height:74px;border:0;border-radius:50%;display:grid;place-items:center;color:#fff;cursor:pointer}
+#fake .fb svg{width:32px;height:32px}
+#fdec{background:#FF3B30}
+#fdec svg{transform:rotate(135deg)}
+#facc{background:#34C759;animation:bob 1.2s ease-in-out infinite}
+
+/* ---------- law ---------- */
+.law-grid{display:grid;gap:20px}
+.art{padding:26px 24px}
+.art .sec{display:flex;align-items:baseline;gap:12px;font:800 54px/1 var(--mono);color:var(--sig);letter-spacing:-.03em}
+.art .sec small{font:900 16px var(--serif);color:var(--ink);letter-spacing:.06em}
+.art blockquote{margin:16px 0 14px;padding-left:16px;border-left:4px solid var(--ink);font:600 17px/1.9 var(--serif)}
+.hl{background:linear-gradient(transparent 58%,rgba(255,79,26,.32) 58%);padding:0 2px}
+.pill{display:inline-block;margin:2px 4px 2px 0;padding:3px 10px;border:1.5px solid var(--ink);border-radius:99px;font-size:12.5px;font-weight:700;background:var(--paper)}
+.law2 p{margin:0 0 10px;font-size:14.5px}
+.ch-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));margin-bottom:20px}
+.ch{padding:16px;background:var(--card);border:1.5px solid var(--ink);border-radius:14px;box-shadow:3px 3px 0 var(--ink)}
+.ch .k{font:800 10.5px var(--mono);letter-spacing:.18em;color:var(--sig)}
+.ch h4{margin:4px 0 6px;font:900 17px var(--serif)}
+.ch p{margin:0;font-size:13.5px;color:var(--ink2)}
+.ch a{color:var(--ink);font-family:var(--mono);font-weight:800}
+.mantra{padding:22px 24px;background:var(--ink);color:var(--paper);box-shadow:4px 4px 0 var(--sig)}
+.mantra h3{color:var(--paper)}
+.mantra ol{margin:0;padding:0;list-style:none;counter-reset:m}
+.mantra li{counter-increment:m;display:flex;gap:14px;padding:12px 0;border-top:1px dashed rgba(243,239,230,.2);font:600 16px/1.7 var(--serif)}
+.mantra li::before{content:counter(m,decimal-leading-zero);font:800 12px/2.2 var(--mono);color:var(--sig)}
+.mantra .note{color:#9C9486}
+
+#toast{position:fixed;left:50%;bottom:calc(98px + env(safe-area-inset-bottom));z-index:300;display:flex;align-items:center;gap:8px;padding:9px 18px;border:1.5px solid var(--ink);border-radius:99px;background:var(--paper);color:var(--ink);font:700 13.5px var(--sans);box-shadow:3px 3px 0 var(--ink);transform:translate(-50%,20px);opacity:0;pointer-events:none;transition:transform .25s cubic-bezier(.3,1.4,.5,1),opacity .2s}
+#toast.on{transform:translate(-50%,0);opacity:1}
+#toast::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--sig)}
+footer{max-width:1100px;margin:0 auto;padding:6px 16px 20px;font:600 10.5px var(--mono);letter-spacing:.1em;color:var(--mut);text-align:center}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes blink{50%{opacity:.25}}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes ripple{from{opacity:.9;transform:scale(.6)}to{opacity:0;transform:scale(1.15)}}
+@keyframes stamp{from{opacity:0;transform:rotate(-9deg) scale(1.8)}to{opacity:.92;transform:rotate(-9deg) scale(1)}}
+@keyframes ring{from{transform:scale(1);opacity:.8}to{transform:scale(1.5);opacity:0}}
+@keyframes bob{50%{transform:translateY(-6px)}}
+@keyframes fadein{from{opacity:0}}
+
+@media (max-width:520px){
+  .sh h2{font-size:27px}
+  .status{font-size:0;padding:7px}
+  .status i{width:9px;height:9px}
+  .call .num{font-size:64px}
+  .rules b{font-size:19px}
+  #fake .fb{gap:70px}
+}
+@media (min-width:640px){
+  .fg{grid-template-columns:1fr 1fr}
+  .f.full{grid-column:1/-1}
+}
+@media (min-width:880px){
+  body{padding-bottom:30px}
+  .tabs{position:sticky;top:66px;left:auto;right:auto;bottom:auto;display:flex;justify-content:center;gap:4px;max-width:640px;margin:20px auto 0;border-radius:99px;padding:5px;box-shadow:4px 4px 0 var(--sig)}
+  .tabs button{flex:1;flex-direction:row;justify-content:center;gap:8px;padding:9px 0;border-radius:99px;font-size:14px}
+  .tabs svg{width:18px;height:18px}
+  main{padding-top:30px}
+  .radar-grid{grid-template-columns:minmax(360px,440px) 1fr;align-items:start}
+  .scope{position:sticky;top:140px}
+  .log-grid{grid-template-columns:1.05fr 1fr;align-items:start}
+  .sos-grid{grid-template-columns:1fr 1fr}
+  .sos-grid .wide{grid-column:1/-1}
+  .law-grid{grid-template-columns:1.25fr 1fr;align-items:start}
+  #toast{bottom:32px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <span class="mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16130F" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="#16130F"/></svg></span>
+    <div><b>防骚扰雷达</b><small>BEHAVIOR · NOT IDENTITY</small></div>
+  </div>
+  <div class="status"><i></i>离线运行 · 数据只在本机</div>
+</header>
+
+<nav class="tabs" id="nav">
+  <button data-t="radar" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6.4-6.4"/></svg>雷达</button>
+  <button data-t="log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>记录本</button>
+  <button data-t="say"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5h16v11H10l-6 4z"/></svg>话术卡</button>
+  <button data-t="sos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5M12 17.4v.1"/></svg>紧急</button>
+  <button data-t="law"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M7 20h10M4 7h16M7 7l-3 7a3 3 0 0 0 6 0zM17 7l-3 7a3 3 0 0 0 6 0z"/></svg>权利</button>
+</nav>
+
+<main>
+
+<!-- ================= RADAR ================= -->
+<section id="radar" class="on">
+  <div class="sh rv">
+    <div><span class="no">01 / SCAN</span><h2>越界行为雷达</h2></div>
+    <p>每个光点是一个越界行为。只看对方做了什么，不猜对方是谁。</p>
+  </div>
+
+  <div class="radar-grid">
+    <div class="card scope rv" id="scope" style="--d:1">
+      <div class="scope-head"><span>SECTOR · 你的周围</span><span class="live" id="live">LIVE</span></div>
+      <div class="scope-wrap"><canvas id="cv"></canvas></div>
+      <div class="readout">
+        <div><label>越界行为</label><b id="rCount">00</b></div>
+        <div><label>风险指数</label><b id="rScore">00</b></div>
+        <div><label>风险等级</label><b class="lv" id="rLevel">待命</b></div>
+      </div>
+      <div class="meter">
+        <div class="bar"><i id="mFill"></i></div>
+        <div class="ticks"><span>0</span><span style="left:25%">3 越界</span><span style="left:58.33%">7 高危</span><span>12+</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card rv" style="--d:2">
+        <div class="q-head"><h3>对方做过哪些事？</h3><em>TAP TO SCAN</em></div>
+        <div id="items"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card res rv" id="res" style="--d:3"><div class="in" id="resIn"></div></div>
+  <div class="row rv" style="--d:4">
+    <button class="btn" id="toLog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>把这些记进记录本</button>
+    <button class="btn ghost" id="reset">重置勾选</button>
+  </div>
+</section>
+
+<!-- ================= LOG ================= -->
+<section id="log">
+  <div class="sh rv">
+    <div><span class="no">02 / EVIDENCE</span><h2>事件记录本</h2></div>
+    <p>时间、地点、经过，越早写越准确。以后向学校、单位、平台或警方反映时，这就是你的证据。</p>
+  </div>
+  <div class="log-grid">
+    <div class="card rv" style="--d:1">
+      <span class="kicker">NEW ENTRY</span>
+      <h3>记一笔</h3>
+      <div class="fg">
+        <label class="f"><span>时间</span><input type="datetime-local" id="lt"></label>
+        <label class="f"><span>地点 / 平台</span><input id="lp" placeholder="如：宿舍楼下、微信、教室"></label>
+        <label class="f full"><span>对方是谁 <i>（只写称呼或关系）</i></span><input id="lw" placeholder="如：同学小王、陌生人、某某群里的人"></label>
+        <label class="f full"><span>经过 <i>（说了什么、做了什么、你怎么回应）</i></span><textarea id="ld" rows="5" placeholder="尽量写原话和具体动作，不用修饰。"></textarea></label>
+        <label class="f full"><span>证据说明</span><input id="le" placeholder="截图、聊天记录、在场的人、监控位置等"></label>
+      </div>
+      <button class="btn" id="saveLog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>保存记录</button>
+    </div>
+
+    <div class="card rv" style="--d:2">
+      <div class="list-head"><h3>已有记录</h3><span class="count" id="cnt">0</span></div>
+      <div id="logs"></div>
+      <div class="row">
+        <button class="btn ghost" id="exp">导出 .txt</button>
+        <button class="btn ghost" id="cpAll">复制全部</button>
+        <button class="btn danger" id="clr">一键清空</button>
+      </div>
+      <p class="note">原始截图和聊天记录也要留着，别删对话。记录只存在这个浏览器里，换设备或清缓存就没了，记得及时导出备份。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PHRASES ================= -->
+<section id="say">
+  <div class="sh rv">
+    <div><span class="no">03 / SCRIPT</span><h2>拒绝话术卡</h2></div>
+    <p>点一下就能复制。你不欠对方任何解释，也不需要顾及对方的面子。</p>
+  </div>
+  <div class="rules rv" style="--d:1">
+    <div><b>明确</b><span>直接说“不”</span></div>
+    <div><b>简短</b><span>一两句就够</span></div>
+    <div><b>不解释</b><span>不道歉不找理由</span></div>
+  </div>
+  <div class="row rv" style="--d:2;margin-bottom:18px">
+    <div class="filter" id="filter">
+      <button data-f="all" class="on">全部</button><button data-f="m">温和</button><button data-f="h">强硬</button>
+    </div>
+  </div>
+  <div class="ph-grid rv" id="phrases" style="--d:3"></div>
+</section>
+
+<!-- ================= SOS ================= -->
+<section id="sos">
+  <div class="sh rv">
+    <div><span class="no">04 / EMERGENCY</span><h2>紧急求助</h2></div>
+    <p>人身安全受到威胁时别犹豫，先报警，再考虑别的。</p>
+  </div>
+  <div class="sos-grid">
+    <a class="call wide rv" href="tel:110" style="--d:1">
+      <span class="k">TAP TO CALL · 一键拨打</span>
+      <span class="num"><span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z"/></svg></span>110</span>
+      <span class="lb">报警电话</span>
+      <small>电脑上点击可能无效，请用手机打开本页面。</small>
+    </a>
+
+    <div class="card rv" style="--d:2">
+      <span class="kicker">TRUSTED CONTACT</span>
+      <h3>通知信任的人</h3>
+      <label class="f"><span>联系人手机号 <i>（只存在本机）</i></span><input id="ct" type="tel" inputmode="tel" placeholder="例如 13800000000"></label>
+      <label class="f"><span>求助内容 <i>（可修改）</i></span><input id="sm" value="我需要帮助，请尽快联系我或到我这里来。"></label>
+      <div class="row">
+        <button class="btn" id="sendSms">发短信求助</button>
+        <button class="btn ghost" id="callCt">打给 TA</button>
+      </div>
+    </div>
+
+    <div class="card rv" style="--d:3">
+      <span class="kicker">FAKE CALL</span>
+      <h3>假来电，方便脱身</h3>
+      <label class="f"><span>来电显示名称</span><input id="fn" value="妈妈"></label>
+      <button class="btn" id="fakeGo">5 秒后来电</button>
+      <div class="cd" id="cd"><b id="cdN">5</b><span>把手机放下或锁屏，来电界面马上出现。</span><button class="btn ghost" id="cdX" style="padding:7px 12px">取消</button></div>
+      <p class="note">接听后会显示通话计时，假装在打电话，借机离开就行。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= LAW ================= -->
+<section id="law">
+  <div class="sh rv">
+    <div><span class="no">05 / RIGHTS</span><h2>你的权利</h2></div>
+    <p>法律保护的是“他人”，不分男女。男生被骚扰，同样受保护。</p>
+  </div>
+  <div class="law-grid">
+    <div class="card art rv" style="--d:1">
+      <div class="sec">§1010<small>《民法典》第一千零一十条</small></div>
+      <blockquote>违背他人意愿，以<span class="hl">言语、文字、图像、肢体行为</span>等方式对他人实施性骚扰的，受害人有权依法请求行为人承担民事责任。<br>机关、企业、学校等单位应当采取合理的预防、受理投诉、调查处置等措施，防止和制止利用职权、从属关系等实施性骚扰。</blockquote>
+      <span class="pill">不区分受害人性别</span><span class="pill">不区分行为人性别</span><span class="pill">单位有处置义务</span>
+    </div>
+    <div class="card law2 rv" style="--d:2">
+      <span class="kicker">PUBLIC SECURITY</span>
+      <h3>《治安管理处罚法》</h3>
+      <p>猥亵他人，或者多次发送淫秽、侮辱、恐吓信息干扰他人正常生活的，可以报警，由公安机关依法处理。</p>
+      <p>情节严重、构成犯罪的，依法追究刑事责任。</p>
+      <p class="note">以上为一般性说明，不构成法律意见。具体情况请咨询律师或法律援助机构。</p>
+    </div>
+  </div>
+
+  <div class="ch-grid">
+    <div class="ch rv" style="--d:3"><span class="k">SCHOOL</span><h4>学校</h4><p>辅导员、学院学工办、保卫处、心理中心、纪检监察部门。</p></div>
+    <div class="ch rv" style="--d:3"><span class="k">WORK</span><h4>单位</h4><p>直属上级、人事 / HR、工会、合规或纪检部门。</p></div>
+    <div class="ch rv" style="--d:4"><span class="k">PLATFORM</span><h4>平台</h4><p>在聊天窗口或对方主页点“举报”，选“骚扰 / 色情低俗”，附上截图。</p></div>
+    <div class="ch rv" style="--d:4"><span class="k">POLICE</span><h4>警方</h4><p>紧急情况拨 <a href="tel:110">110</a>；也可以带着记录去辖区派出所报案。</p></div>
+    <div class="ch rv" style="--d:5"><span class="k">HOTLINE</span><h4>热线</h4><p><a href="tel:12348">12348</a> 法律援助；<a href="tel:12338">12338</a> 妇联维权热线（是否受理男性来电以当地为准）。</p></div>
+  </div>
+
+  <div class="card mantra rv" style="--d:5">
+    <h3>请记住</h3>
+    <ol>
+      <li>被骚扰不是你的错。你不需要“证明自己受伤得够重”才有资格求助。</li>
+      <li>拒绝过一次，对方还继续，就已经是骚扰，不用再给机会。</li>
+      <li>证据要留，但别为了取证让自己陷入危险。</li>
+    </ol>
+  </div>
+</section>
+
+</main>
+<footer>NO NETWORK · NO TRACKING · 本页面不联网，所有数据只保存在这台设备的浏览器中</footer>
+
+<div id="fake" role="dialog" aria-label="来电">
+  <div>
+    <div class="av" id="fav">妈</div>
+    <div class="fn" id="fname"></div>
+    <div class="fs" id="fstat">手机 · 来电</div>
+  </div>
+  <div class="fb">
+    <div><button id="fdec" aria-label="拒绝"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z"/></svg></button><span id="fdecL">拒绝</span></div>
+    <div id="faccW"><button id="facc" aria-label="接听"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z"/></svg></button><span>接听</span></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+var $=function(i){return document.getElementById(i)};
+var KEY="ahr_v1";
+var store={
+  get:function(){try{return JSON.parse(localStorage.getItem(KEY))||{}}catch(e){return {}}},
+  set:function(o){try{localStorage.setItem(KEY,JSON.stringify(o))}catch(e){toast("无法保存：浏览器禁用了本地存储")}}
+};
+function toast(m){var t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(toast.h);toast.h=setTimeout(function(){t.classList.remove("on")},1800)}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function pad2(n){return (n<10?"0":"")+n}
+function copy(text,ok){
+  if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(done,fb)}else fb();
+  function done(){toast("已复制");if(ok)ok()}
+  function fb(){var a=document.createElement("textarea");a.value=text;a.style.position="fixed";a.style.opacity="0";document.body.appendChild(a);a.select();try{document.execCommand("copy");done()}catch(e){toast("请手动复制")}a.remove()}
+}
+
+/* tabs */
+function go(t){
+  [].forEach.call(document.querySelectorAll("#nav button"),function(b){b.classList.toggle("on",b.getAttribute("data-t")===t)});
+  [].forEach.call(document.querySelectorAll("main section"),function(s){s.classList.toggle("on",s.id===t)});
+  window.scrollTo(0,0);
+  if(t==="radar")fit();
+}
+$("nav").addEventListener("click",function(e){var b=e.target.closest("button[data-t]");if(b)go(b.getAttribute("data-t"))});
+
+/* ---------- radar data ---------- */
+// w: 权重；sev: 单项即达高危
+var GROUPS=[
+ {k:"A",n:"纠缠与控制",it:[
+  {t:"反复联系，你没回复还一直发、一直打",w:2},
+  {t:"你明确拒绝后，仍继续提同样的要求或示好",w:3},
+  {t:"打探你的行踪、课表、住处，或跟着你",w:3,sev:1},
+  {t:"要求你单独见面，被拒绝后施压或生气",w:2},
+  {t:"监视或翻看你的社交账号、手机，并以此要挟或质问你",w:3,sev:1}]},
+ {k:"B",n:"言语与图文",it:[
+  {t:"说带性暗示的话、开黄腔，让你不舒服",w:2},
+  {t:"发送你没要求的露骨图片、视频或文字",w:3},
+  {t:"评论、议论你的身体或隐私部位",w:2},
+  {t:"在人前或背后散播与你有关的性相关谣言",w:2}]},
+ {k:"C",n:"身体接触",it:[
+  {t:"没经你同意的触碰、搂抱、蹭、摸",w:4,sev:1},
+  {t:"强行拉你、堵住你的去路或不让你离开",w:5,sev:1},
+  {t:"趁你不注意偷拍、偷看，或要求你拍私密照",w:4,sev:1}]},
+ {k:"D",n:"威胁与利用关系",it:[
+  {t:"用成绩、工作、评优、前途等利益交换或暗示",w:4,sev:1},
+  {t:"威胁你：不顺从就公开隐私、伤害你或你的家人",w:5,sev:1},
+  {t:"事后让你保密，说“别告诉别人”",w:2}]}
+];
+var flat=[],checked={};
+GROUPS.forEach(function(g){g.it.forEach(function(x,j){x.id=g.k+(j+1);flat.push(x)})});
+
+var CHECK='<svg viewBox="0 0 24 24" fill="none" stroke="#16130F" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+function renderItems(){
+  var h="",idx=0;
+  GROUPS.forEach(function(g){
+    h+='<div class="grp"><div class="grp-h"><span class="lt">'+g.k+'</span>'+esc(g.n)+'<span class="ct">'+g.it.length+' 项</span></div>';
+    g.it.forEach(function(x){
+      h+='<label class="chk" data-i="'+idx+'"><input class="sr" type="checkbox" data-i="'+idx+'"><span class="id">'+x.id+'</span><span class="box">'+CHECK+'</span><span class="tx">'+esc(x.t)+'</span>'+(x.sev?'<span class="sv">高危</span>':'')+'</label>';
+      idx++;
+    });
+    h+='</div>';
+  });
+  $("items").innerHTML=h;
+}
+$("items").addEventListener("change",function(e){
+  var i=e.target.getAttribute("data-i");if(i===null)return;
+  checked[i]=e.target.checked;
+  e.target.parentNode.classList.toggle("on",e.target.checked);
+  blips=build();assess(true);
+});
+$("reset").addEventListener("click",function(){
+  checked={};
+  [].forEach.call($("items").querySelectorAll("input"),function(c){c.checked=false;c.parentNode.classList.remove("on")});
+  blips=build();assess(true);
+});
+
+function sel(){return flat.filter(function(_,i){return checked[i]})}
+
+var LVC={n:"#3FD18B",g:"#3FD18B",y:"#FFC21A",r:"#FF4433"};
+var LV={
+ n:{c:"g",stamp:"待命",name:"待命",h:"雷达待命中",sub:"还没勾选任何行为。只是觉得不对劲，也可以先去记录本写下来，这种感觉本身就是有效信息。",steps:[]},
+ g:{c:"g",stamp:"留意",name:"低",h:"低风险，但请留意",sub:"目前是轻度越界，及时表明态度通常就能止住。",steps:[
+   "明确拒绝一次，用话术卡里的温和版就行。",
+   "在记录本里记下这一次，方便以后对照。",
+   "如果对方继续，风险等级会往上走，到时按黄色或红色的建议处理。"]},
+ y:{c:"y",stamp:"越界",name:"中",h:"中风险：已经越界",sub:"对方已经越过了正常交往的边界，需要你主动设防。",steps:[
+   "用话术卡里的<b>强硬版</b>明确拒绝一次，之后不再回应。",
+   "现在就开始写记录，保存截图和聊天记录。",
+   "告诉一位你信任的人，别一个人扛着。",
+   "避免和对方单独相处，换路线或结伴出行。"]},
+ r:{c:"r",stamp:"高危",name:"高",h:"高风险：请认真对待",sub:"这些行为可能已经违法，你的安全排在第一位。",steps:[
+   "不要再单独见对方，也不要去对方指定的地点。",
+   "<b>现在就告诉信任的人</b>，必要时直接报警。",
+   "保存所有证据，向学校、单位或平台正式投诉。",
+   "拒绝一次后就不再回应，别自己上门去“说清楚”。",
+   "觉得危险，就走到人多、有监控的地方。"]}
+};
+var level="n";
+function assess(anim){
+  var s=sel(),score=0,sev=false;
+  s.forEach(function(x){score+=x.w;if(x.sev)sev=true});
+  var lv=!s.length?"n":((sev||score>=7)?"r":(score>=3?"y":"g"));
+  var d=LV[lv],changed=lv!==level;level=lv;
+  var col=LVC[lv];
+  $("scope").style.setProperty("--lvc",col);
+  $("rCount").textContent=pad2(s.length);
+  $("rScore").textContent=pad2(score);
+  $("rLevel").textContent=d.name;
+  $("mFill").style.width=Math.min(score,12)/12*100+"%";
+  $("res").className="card res "+d.c;
+  var h='<span class="stamp'+(anim&&changed?' go':'')+'">'+d.stamp+'</span><span class="kicker">ASSESSMENT · 评估结果</span><h3>'+d.h+'</h3><p class="sub">'+d.sub+'</p>';
+  if(d.steps.length)h+='<ol class="steps">'+d.steps.map(function(x){return "<li><span>"+x+"</span></li>"}).join("")+'</ol>';
+  if(lv==="r")h+='<div class="row"><a class="btn danger" href="tel:110">拨打 110</a><button class="btn ghost" data-go="sos">通知信任的人</button></div>';
+  if(lv==="y")h+='<div class="row"><button class="btn ghost" data-go="say">去拿强硬版话术</button></div>';
+  if(s.length)h+='<p class="meta">已勾选 '+s.length+' 项 · 风险指数 '+score+' · 评估只依据行为，与对方是谁无关</p>';
+  $("resIn").innerHTML=h;
+  if(anim){var sc=$("scope");sc.classList.remove("flash");void sc.offsetWidth;sc.classList.add("flash")}
+}
+$("res").addEventListener("click",function(e){var b=e.target.closest("[data-go]");if(b)go(b.getAttribute("data-go"))});
+
+/* ---------- radar canvas ---------- */
+var cv=$("cv"),ctx=cv.getContext("2d"),size=320,blips=[],TAU=Math.PI*2;
+function fit(){
+  var w=cv.parentNode.clientWidth||320,dpr=Math.min(window.devicePixelRatio||1,3);
+  size=w;cv.width=Math.round(w*dpr);cv.height=Math.round(w*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener("resize",fit);
+function rgba(hex,a){var n=parseInt(hex.slice(1),16);return "rgba("+(n>>16)+","+(n>>8&255)+","+(n&255)+","+a+")"}
+function build(){
+  var out=[];
+  flat.forEach(function(x,i){
+    if(!checked[i])return;
+    var a=((i*137.508)%360)*Math.PI/180;
+    var r=0.28+((i*47)%61)/100;
+    out.push({a:a,r:Math.min(r,0.88),sev:x.sev,id:x.id});
+  });
+  return out;
+}
+function norm(a){a%=TAU;return a<0?a+TAU:a}
+var mono='"JetBrains Mono","Cascadia Code",Consolas,monospace';
+function draw(t){
+  var S=size,cx=S/2,cy=S/2,R=S/2-28,col=LVC[level],i,a;
+  var ang=norm((t||0)/1000*1.5);
+  ctx.clearRect(0,0,S,S);
+
+  // bezel
+  for(i=0;i<360;i+=5){
+    a=i*Math.PI/180-Math.PI/2;
+    var big=i%30===0,l=big?8:3.5;
+    ctx.strokeStyle=big?"rgba(243,239,230,.55)":"rgba(243,239,230,.22)";
+    ctx.lineWidth=big?1.4:1;
+    ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*(R+5),cy+Math.sin(a)*(R+5));ctx.lineTo(cx+Math.cos(a)*(R+5+l),cy+Math.sin(a)*(R+5+l));ctx.stroke();
+  }
+  ctx.fillStyle="rgba(243,239,230,.45)";ctx.font="600 8.5px "+mono;ctx.textAlign="center";ctx.textBaseline="middle";
+  for(i=0;i<360;i+=30){a=i*Math.PI/180-Math.PI/2;ctx.fillText(("00"+i).slice(-3),cx+Math.cos(a)*(R+21),cy+Math.sin(a)*(R+21))}
+
+  // disc
+  var bg=ctx.createRadialGradient(cx,cy,0,cx,cy,R);
+  bg.addColorStop(0,rgba(col,.14));bg.addColorStop(1,rgba(col,.02));
+  ctx.fillStyle=bg;ctx.beginPath();ctx.arc(cx,cy,R,0,TAU);ctx.fill();
+  ctx.strokeStyle="rgba(243,239,230,.5)";ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(cx,cy,R,0,TAU);ctx.stroke();
+  ctx.setLineDash([2,4]);ctx.lineWidth=1;ctx.strokeStyle="rgba(243,239,230,.2)";
+  for(i=1;i<4;i++){ctx.beginPath();ctx.arc(cx,cy,R*i/4,0,TAU);ctx.stroke()}
+  ctx.beginPath();ctx.moveTo(cx-R,cy);ctx.lineTo(cx+R,cy);ctx.moveTo(cx,cy-R);ctx.lineTo(cx,cy+R);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle="rgba(243,239,230,.07)";
+  ctx.beginPath();var q=R*Math.SQRT1_2;ctx.moveTo(cx-q,cy-q);ctx.lineTo(cx+q,cy+q);ctx.moveTo(cx+q,cy-q);ctx.lineTo(cx-q,cy+q);ctx.stroke();
+
+  // sweep trail
+  var TR=1.1;
+  ctx.save();ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,R,ang-TR,ang);ctx.closePath();
+  if(ctx.createConicGradient){
+    var g=ctx.createConicGradient(ang-TR,cx,cy);
+    g.addColorStop(0,rgba(col,0));g.addColorStop(TR/TAU,rgba(col,.42));g.addColorStop(Math.min(TR/TAU+.0001,1),rgba(col,0));
+    ctx.fillStyle=g;
+  }else ctx.fillStyle=rgba(col,.14);
+  ctx.fill();ctx.restore();
+  ctx.save();ctx.shadowColor=col;ctx.shadowBlur=10;ctx.strokeStyle=col;ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(ang)*R,cy+Math.sin(ang)*R);ctx.stroke();ctx.restore();
+
+  // blips
+  blips.forEach(function(b){
+    var d=norm(ang-b.a),fade=1-d/TAU,al=.3+fade*.7;
+    var bx=cx+Math.cos(b.a)*b.r*R,by=cy+Math.sin(b.a)*b.r*R,c=b.sev?"#FF4433":"#FFC21A";
+    if(d<1.3){var p=d/1.3;ctx.strokeStyle=rgba(c,(1-p)*.9);ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(bx,by,6+p*20,0,TAU);ctx.stroke()}
+    ctx.save();ctx.globalAlpha=al;ctx.shadowColor=c;ctx.shadowBlur=12*fade;ctx.fillStyle=c;
+    if(b.sev){ctx.beginPath();ctx.moveTo(bx,by-7);ctx.lineTo(bx+7,by);ctx.lineTo(bx,by+7);ctx.lineTo(bx-7,by);ctx.closePath();ctx.fill()}
+    else{ctx.beginPath();ctx.arc(bx,by,5,0,TAU);ctx.fill()}
+    ctx.restore();
+    ctx.globalAlpha=.35+fade*.55;ctx.fillStyle="#F3EFE6";ctx.font="700 9px "+mono;ctx.textAlign="left";ctx.textBaseline="middle";
+    ctx.fillText(b.id,bx+10,by-8);ctx.globalAlpha=1;
+  });
+
+  // center
+  ctx.fillStyle="#F3EFE6";ctx.beginPath();ctx.arc(cx,cy,4,0,TAU);ctx.fill();
+  ctx.strokeStyle="rgba(243,239,230,.5)";ctx.lineWidth=1;ctx.beginPath();ctx.arc(cx,cy,9,0,TAU);ctx.stroke();
+  ctx.fillStyle="rgba(243,239,230,.75)";ctx.font="700 10px "+mono;ctx.textAlign="center";ctx.textBaseline="top";
+  ctx.fillText("YOU",cx,cy+14);
+  if(!blips.length){ctx.fillStyle="rgba(243,239,230,.45)";ctx.font="600 10px "+mono;ctx.fillText("NO CONTACT · 未发现越界行为",cx,cy+R*.5)}
+  requestAnimationFrame(draw);
+}
+
+/* ---------- log ---------- */
+function nowLocal(){var d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16)}
+function logs(){return store.get().logs||[]}
+function saveLogs(l){var o=store.get();o.logs=l;store.set(o)}
+function renderLogs(){
+  var l=logs();$("cnt").textContent=l.length;
+  if(!l.length){$("logs").innerHTML='<div class="empty"><b>空白</b>NO ENTRIES · 暂无记录</div>';return}
+  $("logs").innerHTML='<div class="tl">'+l.slice().reverse().map(function(e){
+    return '<div class="ent"><div class="m"><span>'+esc(e.time.replace("T"," "))+'</span>'
+      +(e.place?'<span class="chip">'+esc(e.place)+'</span>':'')+(e.who?'<span class="chip">'+esc(e.who)+'</span>':'')
+      +'<button class="del" data-del="'+e.id+'">删除</button></div>'
+      +'<p>'+esc(e.desc)+'</p>'+(e.ev?'<div class="ev"><b>证据</b>'+esc(e.ev)+'</div>':'')+'</div>';
+  }).join("")+'</div>';
+}
+function addLog(e){var l=logs();e.id=Date.now()+Math.floor(Math.random()*1000);l.push(e);saveLogs(l);renderLogs()}
+$("saveLog").addEventListener("click",function(){
+  var d=$("ld").value.trim();
+  if(!d){toast("请先写下经过");$("ld").focus();return}
+  addLog({time:$("lt").value||nowLocal(),place:$("lp").value.trim(),who:$("lw").value.trim(),desc:d,ev:$("le").value.trim()});
+  $("ld").value="";$("le").value="";$("lt").value=nowLocal();toast("已保存");
+});
+$("logs").addEventListener("click",function(e){
+  var id=e.target.getAttribute("data-del");if(!id)return;
+  if(confirm("删除这条记录？")){saveLogs(logs().filter(function(x){return String(x.id)!==id}));renderLogs()}
+});
+$("toLog").addEventListener("click",function(){
+  var s=sel();if(!s.length){toast("请先勾选行为");return}
+  $("ld").value="对方的行为：\n"+s.map(function(x,i){return (i+1)+". "+x.t}).join("\n")+"\n\n具体经过：";
+  $("lt").value=nowLocal();
+  go("log");
+});
+function asText(){
+  var l=logs();
+  if(!l.length)return "";
+  return "骚扰事件记录（导出时间："+new Date().toLocaleString()+"）\n共 "+l.length+" 条\n\n"+l.map(function(e,i){
+    return "【"+(i+1)+"】时间："+e.time.replace("T"," ")+"\n地点/平台："+(e.place||"未填")+"\n对方："+(e.who||"未填")+"\n经过："+e.desc+"\n证据："+(e.ev||"无")+"\n";
+  }).join("\n");
+}
+$("exp").addEventListener("click",function(){
+  var t=asText();if(!t){toast("没有可导出的记录");return}
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob(["﻿"+t],{type:"text/plain;charset=utf-8"}));
+  a.download="骚扰事件记录.txt";document.body.appendChild(a);a.click();a.remove();
+});
+$("cpAll").addEventListener("click",function(){var t=asText();t?copy(t):toast("没有可复制的记录")});
+$("clr").addEventListener("click",function(){
+  if(!confirm("将清空所有记录、联系人等本机数据，无法恢复。确定吗？"))return;
+  try{localStorage.removeItem(KEY)}catch(e){}
+  $("ct").value="";renderLogs();toast("已清空");
+});
+
+/* ---------- phrases ---------- */
+var PH=[
+ ["m","我对你没有这方面的意思，请不要再这样了。"],
+ ["m","这样让我不舒服，请你停下来。"],
+ ["m","我不想聊这个话题，以后请不要再提。"],
+ ["m","我不方便单独见面，有事可以在群里说。"],
+ ["h","我已经明确拒绝过了。你再继续，我会向学校、单位或平台投诉并报警。"],
+ ["h","请不要碰我。这是我最后一次说，再有下次我会直接报警。"],
+ ["h","你发的内容我已经全部保存，再有一次，我会交给辅导员、人事或警方处理。"],
+ ["h","不要再联系我，也不要来找我。我不会再回复你。"],
+ ["m","我有事先走了。","当面脱身"],
+ ["m","请你说话注意分寸，我不太舒服。","在场有其他人时"]
+];
+$("phrases").innerHTML=PH.map(function(p,i){
+  return '<button class="ph '+p[0]+'" data-p="'+i+'"><span class="tg">'+(p[0]==="m"?"温和 · SOFT":"强硬 · FIRM")+'</span>'
+    +(p[2]?'<span class="ctx">'+esc(p[2])+'</span>':'')
+    +'<q>'+esc(p[1])+'</q><span class="ft"><span>NO.'+pad2(i+1)+'</span><span class="cp">点击复制</span></span></button>';
+}).join("");
+$("phrases").addEventListener("click",function(e){
+  var n=e.target.closest("[data-p]");if(!n)return;
+  copy(PH[+n.getAttribute("data-p")][1],function(){
+    n.classList.add("done");n.querySelector(".cp").textContent="已复制 ✓";
+    clearTimeout(n._t);n._t=setTimeout(function(){n.classList.remove("done");n.querySelector(".cp").textContent="点击复制"},1600);
+  });
+});
+$("filter").addEventListener("click",function(e){
+  var b=e.target.closest("[data-f]");if(!b)return;var f=b.getAttribute("data-f");
+  [].forEach.call(this.children,function(x){x.classList.toggle("on",x===b)});
+  [].forEach.call($("phrases").children,function(c){c.classList.toggle("hide",f!=="all"&&!c.classList.contains(f))});
+});
+
+/* ---------- sos ---------- */
+function loadSos(){var o=store.get();if(o.ct)$("ct").value=o.ct;if(o.sm)$("sm").value=o.sm;if(o.fn)$("fn").value=o.fn}
+["ct","sm","fn"].forEach(function(id){
+  $(id).addEventListener("change",function(){var o=store.get();o[id]=$(id).value.trim();store.set(o)});
+});
+function num(){return $("ct").value.replace(/[^\d+]/g,"")}
+$("sendSms").addEventListener("click",function(){
+  var n=num();if(!n){toast("请先填写联系人手机号");$("ct").focus();return}
+  var o=store.get();o.ct=n;o.sm=$("sm").value;store.set(o);
+  location.href="sms:"+n+"?body="+encodeURIComponent($("sm").value);
+});
+$("callCt").addEventListener("click",function(){
+  var n=num();if(!n){toast("请先填写联系人手机号");$("ct").focus();return}
+  location.href="tel:"+n;
+});
+
+var fk={cd:null,tm:null};
+function stopCd(){clearInterval(fk.cd);fk.cd=null;$("cd").classList.remove("on")}
+$("fakeGo").addEventListener("click",function(){
+  stopCd();var n=5;$("cdN").textContent=n;$("cd").classList.add("on");
+  fk.cd=setInterval(function(){n--;if(n<=0){stopCd();showFake()}else $("cdN").textContent=n},1000);
+});
+$("cdX").addEventListener("click",function(){stopCd();toast("已取消")});
+function showFake(){
+  var name=$("fn").value.trim()||"未知号码";
+  $("fname").textContent=name;$("fav").textContent=name.charAt(0);
+  $("fstat").textContent="手机 · 来电";$("fdecL").textContent="拒绝";$("faccW").style.display="";
+  $("fake").classList.add("on");
+  if(navigator.vibrate)navigator.vibrate([600,400,600,400,600,400,600]);
+}
+function endFake(){
+  clearInterval(fk.tm);fk.tm=null;
+  $("fake").classList.remove("on");
+  if(navigator.vibrate)navigator.vibrate(0);
+}
+$("fdec").addEventListener("click",endFake);
+$("facc").addEventListener("click",function(){
+  if(navigator.vibrate)navigator.vibrate(0);
+  $("faccW").style.display="none";$("fdecL").textContent="挂断";
+  var s=0;$("fstat").textContent="00:00";
+  fk.tm=setInterval(function(){s++;$("fstat").textContent=pad2(Math.floor(s/60))+":"+pad2(s%60)},1000);
+});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&$("fake").classList.contains("on"))endFake()});
+
+/* init */
+renderItems();blips=build();assess(false);
+$("lt").value=nowLocal();renderLogs();loadSos();
+fit();requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
